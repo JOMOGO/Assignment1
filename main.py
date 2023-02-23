@@ -6,9 +6,9 @@ engine = db.create_engine('mysql+mysqlconnector://root:Rg123456@localhost/HotelR
 conn = engine.connect()
 
 # Read out csv file with pandas
-df = pd.read_csv('Hotel_Reviews.csv', sep=',')
+df = pd.read_csv('Hotel_Reviews.csv', sep=',', engine='python', on_bad_lines='skip')
 
-#extracting the metadata
-metadata = db.MetaData()
 # Create table object
-df.to_sql(name='reviews', con=engine, if_exists='replace', chunksize=5000)
+df.to_sql(name='reviews', con=engine, if_exists='replace', chunksize=1000)
+df.head()
+conn.close()
