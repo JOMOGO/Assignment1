@@ -69,8 +69,56 @@ def call_stored_procedure(limit):
     df = pd.DataFrame(results, columns=['Hotel_Name', 'Reviewer_Nationality', 'Negative_Review', 'Positive_Review'])
 
     return df
-df = call_stored_procedure(100)
+df = call_stored_procedure(10000)
 print(df.head())
+
+def find_duplicate_negative_reviews(df):
+    # Filter the dataframe to only include duplicate negative reviews
+    duplicate_negative_reviews = df[df['Negative_Review'].duplicated(keep=False)]
+
+    # Group the filtered dataframe by 'Negative_Review' and count the occurrences
+    duplicate_counts = duplicate_negative_reviews.groupby('Negative_Review').size().reset_index(name='Count')
+
+    # Sort the resulting dataframe by 'Count' in descending order
+    duplicate_counts_sorted = duplicate_counts.sort_values('Count', ascending=False)
+
+    return duplicate_counts_sorted
+duplicate_counts_sorted_negative = find_duplicate_negative_reviews(df)
+
+def find_duplicate_positive_reviews(df):
+    # Filter the dataframe to only include duplicate positive reviews
+    duplicate_positive_reviews = df[df['Positive_Review'].duplicated(keep=False)]
+
+    # Group the filtered dataframe by 'Positive_Review' and count the occurrences
+    duplicate_counts = duplicate_positive_reviews.groupby('Positive_Review').size().reset_index(name='Count')
+
+    # Sort the resulting dataframe by 'Count' in descending order
+    duplicate_counts_sorted = duplicate_counts.sort_values('Count', ascending=False)
+
+    return duplicate_counts_sorted
+duplicate_counts_sorted_positive = find_duplicate_positive_reviews(df)
+
+def update_reviews(df):
+    # List of phrases to match for negative and positive reviews
+    negative_phrases_to_match = [
+        'Nothing', ' Nothing', 'nothing', 'None', 'N A', 'n a', 'N a', 'Nothing really',
+        'Absolutely nothing', 'Nothing to dislike', 'Nothing I can think of',
+        'Nothing at all', 'All good', 'No complaints'
+    ]
+
+    positive_phrases_to_match = ['No Positive', 'nothing']
+
+    # Update the negative and positive reviews in the dataframe that match the specified phrases to None
+    df['Negative_Review'] = df['Negative_Review'].apply(lambda x: None if x.strip() in negative_phrases_to_match else x)
+    df['Positive_Review'] = df['Positive_Review'].apply(lambda x: None if x.strip() in positive_phrases_to_match else x)
+
+    return df
+updated_df = update_reviews(df)
+
+
+
+
+
 
 
 
