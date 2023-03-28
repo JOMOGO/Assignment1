@@ -1,5 +1,6 @@
 import pandas as pd
 import sqlalchemy as db
+from sqlalchemy import text
 import mysql.connector
 
 
@@ -18,6 +19,7 @@ def csv_to_sql():
     dfCsv.to_sql(name='reviews', con=engine, if_exists='replace', chunksize=1000)
     # Remove dataframe
     del dfCsv
+    conn.close()
 csv_to_sql()
 
 def create_stored_procedure():
@@ -25,7 +27,7 @@ def create_stored_procedure():
     cnx = mysql.connector.connect(user='root', password='Rg123456', host='localhost', database='HotelReviews')
     cursor = cnx.cursor()
     # Check if the stored procedure exists
-    check_sp_query = "SHOW PROCEDURE STATUS WHERE Name = 'get_model_data'"
+    check_sp_query = "SHOW PROCEDURE STATUS WHERE Name = 'get_data'"
     cursor.execute(check_sp_query)
     result = cursor.fetchone()
     # If the stored procedure exists, drop it
@@ -46,5 +48,36 @@ def create_stored_procedure():
     cnx.close()
 create_stored_procedure()
 
-# Call the stored procedure
+def call_stored_procedure(limit):
+    # Connect to the database
+    cnx = mysql.connector.connect(user='root', password='Rg123456', host='localhost', database='HotelReviews')
+    cursor = cnx.cursor()
+
+    # Call the stored procedure
+    cursor.callproc('get_data', [limit])
+
+    # Fetch the results
+    results = []
+    for result in cursor.stored_results():
+        results = result.fetchall()
+
+    # Close the cursor and connection
+    cursor.close()
+    cnx.close()
+
+    # Convert the results to a pandas DataFrame
+    df = pd.DataFrame(results, columns=['Hotel_Name', 'Reviewer_Nationality', 'Negative_Review', 'Positive_Review'])
+
+    return df
+df = call_stored_procedure(100)
+print(df.head())
+
+
+
+
+# Split into two dataframes
+#dfPositive = dfSQL.filter(['A','B','D'], axis=1)
+#dfNegative = dfSQL.filter(['A','B','D'], axis=1)
+
+
 
