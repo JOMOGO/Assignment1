@@ -2,6 +2,15 @@ import pandas as pd
 import sqlalchemy as db
 from sqlalchemy import text
 import mysql.connector
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import accuracy_score
 
 
 def csv_to_sql():
@@ -70,8 +79,8 @@ def call_stored_procedure(limit):
 
     return df
 df = call_stored_procedure(10000)
-print(df.head())
 
+# Based the filter on this
 def find_duplicate_negative_reviews(df):
     # Filter the dataframe to only include duplicate negative reviews
     duplicate_negative_reviews = df[df['Negative_Review'].duplicated(keep=False)]
@@ -85,6 +94,7 @@ def find_duplicate_negative_reviews(df):
     return duplicate_counts_sorted
 duplicate_counts_sorted_negative = find_duplicate_negative_reviews(df)
 
+# Based the filter on this
 def find_duplicate_positive_reviews(df):
     # Filter the dataframe to only include duplicate positive reviews
     duplicate_positive_reviews = df[df['Positive_Review'].duplicated(keep=False)]
@@ -98,7 +108,7 @@ def find_duplicate_positive_reviews(df):
     return duplicate_counts_sorted
 duplicate_counts_sorted_positive = find_duplicate_positive_reviews(df)
 
-def update_reviews(df):
+def filter_reviews(df):
     # List of phrases to match for negative and positive reviews
     negative_phrases_to_match = [
         'Nothing', ' Nothing', 'nothing', 'None', 'N A', 'n a', 'N a', 'Nothing really',
@@ -113,19 +123,72 @@ def update_reviews(df):
     df['Positive_Review'] = df['Positive_Review'].apply(lambda x: None if x.strip() in positive_phrases_to_match else x)
 
     return df
-updated_df = update_reviews(df)
+updated_df = filter_reviews(df)
 
 
+# Preprocess the data and combine reviews
+def preprocess_data(df):
+    # Combine negative and positive reviews into a single column
+    negative_reviews = df[['Negative_Review']].copy()
+    negative_reviews['Sentiment'] = 0
+    negative_reviews.columns = ['Review', 'Sentiment']
 
+    positive_reviews = df[['Positive_Review']].copy()
+    positive_reviews['Sentiment'] = 1
+    positive_reviews.columns = ['Review', 'Sentiment']
 
+    combined_reviews = pd.concat([negative_reviews, positive_reviews], ignore_index=True)
+    combined_reviews.dropna(subset=['Review'], inplace=True)
 
+    return combined_reviews
+combined_reviews = preprocess_data(updated_df)
 
+def train_model(combined_reviews):
+    # Split the dataset into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(combined_reviews['Review'], combined_reviews['Sentiment'], test_size=0.2, random_state=42)
 
+    # Logistic Regression
+    lr_pipeline = Pipeline([
+        ('tfidf', TfidfVectorizer()),
+        ('classifier', LogisticRegression())
+    ])
 
+    # Multinomial Naive Bayes
+    mnb_pipeline = Pipeline([
+        ('tfidf', TfidfVectorizer()),
+        ('classifier', MultinomialNB())
+    ])
 
-# Split into two dataframes
-#dfPositive = dfSQL.filter(['A','B','D'], axis=1)
-#dfNegative = dfSQL.filter(['A','B','D'], axis=1)
+    # Support Vector Machines
+    svm_pipeline = Pipeline([
+        ('tfidf', TfidfVectorizer()),
+        ('classifier', LinearSVC())
+    ])
+
+    # Train the classifiers
+    lr_pipeline.fit(X_train, y_train)
+    mnb_pipeline.fit(X_train, y_train)
+    svm_pipeline.fit(X_train, y_train)
+
+    # Evaluate the performance of the classifiers
+    lr_preds = lr_pipeline.predict(X_test)
+    mnb_preds = mnb_pipeline.predict(X_test)
+    svm_preds = svm_pipeline.predict(X_test)
+
+def combine_models(preds1, preds2, preds3):
+    combined_preds = []
+    for p1, p2, p3 in zip(preds1, preds2, preds3):
+        votes = [p1, p2, p3]
+        combined_preds.append(np.argmax(np.bincount(votes)))
+    return combined_preds
+combined_preds = combine_models(lr_preds, mnb_preds, svm_preds)
+combined_accuracy = accuracy_score(y_test, combined_preds)
+
+# Calculate the accuracy of all the models and the combined model.
+print("Combined Accuracy: ", combined_accuracy)
+print("Logistic Regression Accuracy: ", accuracy_score(y_test, lr_preds))
+print("Multinomial Naive Bayes Accuracy: ", accuracy_score(y_test, mnb_preds))
+print("Support Vector Machines Accuracy: ", accuracy_score(y_test, svm_preds))
 
 
 
