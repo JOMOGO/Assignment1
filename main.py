@@ -1,21 +1,26 @@
+import matplotlib.pyplot as plt
+import mysql.connector
+import nltk
+import numpy as np
 import pandas as pd
+import seaborn as sns
 import sqlalchemy as db
 from sqlalchemy import text
-import mysql.connector
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
 from sklearn.linear_model import LogisticRegression
-from sklearn.svm import LinearSVC
-from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score
-
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.pipeline import Pipeline
+from sklearn.svm import LinearSVC
 
 def csv_to_sql():
     # Load the CSV file into a pandas dataframe
     dfCsv = pd.read_csv(filepath_or_buffer='Hotel_Reviews.csv', engine='python', on_bad_lines='skip')
+    # Add new columns for word counts
+    dfCsv['Negative_Review_Word_Count'] = dfCsv['Negative_Review'].apply(lambda x: len(x.split()))
+    dfCsv['Positive_Review_Word_Count'] = dfCsv['Positive_Review'].apply(lambda x: len(x.split()))
     # drop unwanted columns
     dfCsv.drop(['Hotel_Address','Additional_Number_of_Scoring', 'Review_Date', 'Average_Score',
              'Review_Total_Negative_Word_Counts', 'Total_Number_of_Reviews',
@@ -47,7 +52,8 @@ def create_stored_procedure():
     create_sp_query = """
     CREATE PROCEDURE `get_data`(IN limitAmount int)
     BEGIN
-        SELECT Hotel_Name, Reviewer_Nationality, Negative_Review, Positive_Review
+        SELECT Hotel_Name, Reviewer_Nationality, Negative_Review, Positive_Review, 
+               Negative_Review_Word_Count, Positive_Review_Word_Count
         FROM reviews
         LIMIT limitAmount;
     END
@@ -75,7 +81,8 @@ def call_stored_procedure(limit):
     cnx.close()
 
     # Convert the results to a pandas DataFrame
-    df = pd.DataFrame(results, columns=['Hotel_Name', 'Reviewer_Nationality', 'Negative_Review', 'Positive_Review'])
+    df = pd.DataFrame(results, columns=['Hotel_Name', 'Reviewer_Nationality', 'Negative_Review',
+                                        'Positive_Review', 'Negative_Review_Word_Count', 'Positive_Review_Word_Count'])
 
     return df
 df = call_stored_procedure(10000)
@@ -175,6 +182,9 @@ def train_model(combined_reviews):
     mnb_preds = mnb_pipeline.predict(X_test)
     svm_preds = svm_pipeline.predict(X_test)
 
+    return X_test, y_test, lr_preds, mnb_preds, svm_preds
+X_test, y_test, lr_preds, mnb_preds, svm_preds = train_model(combined_reviews)
+
 def combine_models(preds1, preds2, preds3):
     combined_preds = []
     for p1, p2, p3 in zip(preds1, preds2, preds3):
@@ -184,11 +194,61 @@ def combine_models(preds1, preds2, preds3):
 combined_preds = combine_models(lr_preds, mnb_preds, svm_preds)
 combined_accuracy = accuracy_score(y_test, combined_preds)
 
-# Calculate the accuracy of all the models and the combined model.
-print("Combined Accuracy: ", combined_accuracy)
-print("Logistic Regression Accuracy: ", accuracy_score(y_test, lr_preds))
-print("Multinomial Naive Bayes Accuracy: ", accuracy_score(y_test, mnb_preds))
-print("Support Vector Machines Accuracy: ", accuracy_score(y_test, svm_preds))
+classifier_accuracies = {
+    'Combined': combined_accuracy,
+    'Logistic Regression': accuracy_score(y_test, lr_preds),
+    'Multinomial Naive Bayes': accuracy_score(y_test, mnb_preds),
+    'Support Vector Machines': accuracy_score(y_test, svm_preds)
+}
 
+# Calculate the accuracy of all the models and the combined model
+print("Combined Accuracy: ", classifier_accuracies['Combined'])
+print("Logistic Regression Accuracy: ", classifier_accuracies['Logistic Regression'])
+print("Multinomial Naive Bayes Accuracy: ", classifier_accuracies['Multinomial Naive Bayes'])
+print("Support Vector Machines Accuracy: ", classifier_accuracies['Support Vector Machines'])
 
+# Plot the distribution of word counts in the positive and negative reviews
+def plot_word_count_distribution(reviews):
+    plt.figure(figsize=(12, 6))
+    plt.hist(reviews[reviews['Sentiment'] == 0]['Review'].str.len(), alpha=0.6, bins=40, label='Negative', color='red')
+    plt.hist(reviews[reviews['Sentiment'] == 1]['Review'].str.len(), alpha=0.6, bins=40, label='Positive', color='blue')
+    plt.title('Word Count Distribution in Reviews')
+    plt.xlabel('Word Count')
+    plt.ylabel('Frequency')
+    plt.legend(loc='upper right')
+    plt.show()
+plot_word_count_distribution(combined_reviews)
 
+# Plot the frequency of hotel names
+def plot_top_reviewed_hotels(df):
+    plt.figure(figsize=(12, 6))
+    df['Hotel_Name'].value_counts().head(20).plot(kind='barh')
+    plt.title('Top Reviewed Hotels')
+    plt.xlabel('Number of Reviews')
+    plt.ylabel('Hotel Name')
+    plt.gca().invert_yaxis()
+    plt.show()
+plot_top_reviewed_hotels(df)
+
+# Plot the frequency of reviewer nationalities
+def plot_top_reviewer_nationalities(df):
+    plt.figure(figsize=(12, 6))
+    df['Reviewer_Nationality'].value_counts().head(20).plot(kind='barh')
+    plt.title('Top 20 Reviewer Nationalities')
+    plt.xlabel('Number of Reviews')
+    plt.ylabel('Nationality')
+    plt.gca().invert_yaxis()
+    plt.show()
+plot_top_reviewer_nationalities(df)
+
+# Plot the accuracy of the classifiers
+def plot_classifier_accuracies(accuracies):
+    plt.figure(figsize=(8, 6))
+    plt.ylim(0.7, 1.0)
+    plt.bar(range(len(accuracies)), list(accuracies.values()), align='center', color='purple')
+    plt.xticks(range(len(accuracies)), list(accuracies.keys()), rotation=45)
+    plt.title('Accuracy of Classifiers')
+    plt.xlabel('Classifier')
+    plt.ylabel('Accuracy')
+    plt.show()
+plot_classifier_accuracies(classifier_accuracies)
