@@ -88,34 +88,6 @@ def call_stored_procedure(limit):
     return df
 df = call_stored_procedure(10000)
 
-# Based the filter on this
-def find_duplicate_negative_reviews(df):
-    # Filter the dataframe to only include duplicate negative reviews
-    duplicate_negative_reviews = df[df['Negative_Review'].duplicated(keep=False)]
-
-    # Group the filtered dataframe by 'Negative_Review' and count the occurrences
-    duplicate_counts = duplicate_negative_reviews.groupby('Negative_Review').size().reset_index(name='Count')
-
-    # Sort the resulting dataframe by 'Count' in descending order
-    duplicate_counts_sorted = duplicate_counts.sort_values('Count', ascending=False)
-
-    return duplicate_counts_sorted
-duplicate_counts_sorted_negative = find_duplicate_negative_reviews(df)
-
-# Based the filter on this
-def find_duplicate_positive_reviews(df):
-    # Filter the dataframe to only include duplicate positive reviews
-    duplicate_positive_reviews = df[df['Positive_Review'].duplicated(keep=False)]
-
-    # Group the filtered dataframe by 'Positive_Review' and count the occurrences
-    duplicate_counts = duplicate_positive_reviews.groupby('Positive_Review').size().reset_index(name='Count')
-
-    # Sort the resulting dataframe by 'Count' in descending order
-    duplicate_counts_sorted = duplicate_counts.sort_values('Count', ascending=False)
-
-    return duplicate_counts_sorted
-duplicate_counts_sorted_positive = find_duplicate_positive_reviews(df)
-
 def filter_reviews(df):
     # List of phrases to match for negative and positive reviews
     negative_phrases_to_match = [
@@ -132,7 +104,6 @@ def filter_reviews(df):
 
     return df
 updated_df = filter_reviews(df)
-
 
 # Preprocess the data and combine reviews
 def preprocess_data(df):
@@ -195,6 +166,7 @@ def combine_models(preds1, preds2, preds3):
 combined_preds = combine_models(lr_preds, mnb_preds, svm_preds)
 combined_accuracy = accuracy_score(y_test, combined_preds)
 
+# Calculate the accuracy of all the models and the combined model
 classifier_accuracies = {
     'Combined': combined_accuracy,
     'Logistic Regression': accuracy_score(y_test, lr_preds),
@@ -202,7 +174,6 @@ classifier_accuracies = {
     'Support Vector Machines': accuracy_score(y_test, svm_preds)
 }
 
-# Calculate the accuracy of all the models and the combined model
 print("Combined Accuracy: ", classifier_accuracies['Combined'])
 print("Logistic Regression Accuracy: ", classifier_accuracies['Logistic Regression'])
 print("Multinomial Naive Bayes Accuracy: ", classifier_accuracies['Multinomial Naive Bayes'])
