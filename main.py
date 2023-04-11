@@ -14,6 +14,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
+from wordcloud import WordCloud, STOPWORDS
 
 def csv_to_sql():
     # Load the CSV file into a pandas dataframe
@@ -221,8 +222,9 @@ plot_word_count_distribution(combined_reviews)
 
 # Plot the frequency of hotel names
 def plot_top_reviewed_hotels(df):
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(18, 6))
     df['Hotel_Name'].value_counts().head(20).plot(kind='barh')
+    plt.xlim(300)
     plt.title('Top Reviewed Hotels')
     plt.xlabel('Number of Reviews')
     plt.ylabel('Hotel Name')
@@ -232,7 +234,7 @@ plot_top_reviewed_hotels(df)
 
 # Plot the frequency of reviewer nationalities
 def plot_top_reviewer_nationalities(df):
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(15, 6))
     df['Reviewer_Nationality'].value_counts().head(20).plot(kind='barh')
     plt.title('Top 20 Reviewer Nationalities')
     plt.xlabel('Number of Reviews')
@@ -243,12 +245,52 @@ plot_top_reviewer_nationalities(df)
 
 # Plot the accuracy of the classifiers
 def plot_classifier_accuracies(accuracies):
+    accuracies_sorted = dict(sorted(accuracies.items(), key=lambda item: item[1], reverse=True))
     plt.figure(figsize=(8, 6))
-    plt.ylim(0.7, 1.0)
-    plt.bar(range(len(accuracies)), list(accuracies.values()), align='center', color='purple')
-    plt.xticks(range(len(accuracies)), list(accuracies.keys()), rotation=45)
+    plt.ylim(0.92, 0.95)
+    plt.bar(range(len(accuracies_sorted)), list(accuracies_sorted.values()), align='center', color='purple')
+    plt.xticks(range(len(accuracies_sorted)), list(accuracies_sorted.keys()), rotation=15)
+    plt.subplots_adjust(bottom=0.5)
     plt.title('Accuracy of Classifiers')
     plt.xlabel('Classifier')
     plt.ylabel('Accuracy')
     plt.show()
 plot_classifier_accuracies(classifier_accuracies)
+
+def generate_wordcloud_negative(df):
+    # Combine all negative reviews into a single string
+    negative_reviews = ' '.join(df[df['Sentiment'] == 0]['Review'])
+
+    # Generate the word cloud
+    wordcloud = WordCloud(width=800, height=800,
+                          background_color='white',
+                          stopwords=STOPWORDS,
+                          min_font_size=10).generate(negative_reviews)
+
+    # Plot the word cloud
+    plt.figure(figsize=(8, 8), facecolor=None)
+    plt.imshow(wordcloud)
+    plt.axis("off")
+    plt.tight_layout(pad=0)
+    plt.title('Word Cloud of Negative Reviews')
+    plt.show()
+generate_wordcloud_negative(combined_reviews)
+
+def generate_wordcloud_positive(df):
+    # Combine all positive reviews into a single string
+    positive_reviews = ' '.join(df[df['Sentiment'] == 1]['Review'])
+
+    # Generate the word cloud
+    wordcloud = WordCloud(width=800, height=800,
+                          background_color='white',
+                          stopwords=STOPWORDS,
+                          min_font_size=10).generate(positive_reviews)
+
+    # Plot the word cloud
+    plt.figure(figsize=(8, 8), facecolor=None)
+    plt.imshow(wordcloud)
+    plt.axis("off")
+    plt.tight_layout(pad=0)
+    plt.title('Word Cloud of Positive Reviews')
+    plt.show()
+generate_wordcloud_positive(combined_reviews)
