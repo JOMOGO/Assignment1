@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import mysql.connector
 import nltk
+import pickle
+import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -126,28 +128,46 @@ def train_model(combined_reviews):
     # Split the dataset into training and testing sets
     X_train, X_test, y_train, y_test = train_test_split(combined_reviews['Review'], combined_reviews['Sentiment'], test_size=0.2, random_state=42)
 
-    # Logistic Regression
-    lr_pipeline = Pipeline([
-        ('tfidf', TfidfVectorizer()),
-        ('classifier', LogisticRegression())
-    ])
+    # Check if the saved models exist
+    if os.path.exists('lr_pipeline.pkl') and os.path.exists('mnb_pipeline.pkl') and os.path.exists('svm_pipeline.pkl'):
+        # Load the saved models
+        with open('lr_pipeline.pkl', 'rb') as f:
+            lr_pipeline = pickle.load(f)
+        with open('mnb_pipeline.pkl', 'rb') as f:
+            mnb_pipeline = pickle.load(f)
+        with open('svm_pipeline.pkl', 'rb') as f:
+            svm_pipeline = pickle.load(f)
+    else:
+        # Logistic Regression
+        lr_pipeline = Pipeline([
+            ('tfidf', TfidfVectorizer()),
+            ('classifier', LogisticRegression())
+        ])
 
-    # Multinomial Naive Bayes
-    mnb_pipeline = Pipeline([
-        ('tfidf', TfidfVectorizer()),
-        ('classifier', MultinomialNB())
-    ])
+        # Multinomial Naive Bayes
+        mnb_pipeline = Pipeline([
+            ('tfidf', TfidfVectorizer()),
+            ('classifier', MultinomialNB())
+        ])
 
-    # Support Vector Machines
-    svm_pipeline = Pipeline([
-        ('tfidf', TfidfVectorizer()),
-        ('classifier', LinearSVC())
-    ])
+        # Support Vector Machines
+        svm_pipeline = Pipeline([
+            ('tfidf', TfidfVectorizer()),
+            ('classifier', LinearSVC())
+        ])
 
-    # Train the classifiers
-    lr_pipeline.fit(X_train, y_train)
-    mnb_pipeline.fit(X_train, y_train)
-    svm_pipeline.fit(X_train, y_train)
+        # Train the classifiers
+        lr_pipeline.fit(X_train, y_train)
+        mnb_pipeline.fit(X_train, y_train)
+        svm_pipeline.fit(X_train, y_train)
+
+        # Save the trained models
+        with open('lr_pipeline.pkl', 'wb') as f:
+            pickle.dump(lr_pipeline, f)
+        with open('mnb_pipeline.pkl', 'wb') as f:
+            pickle.dump(mnb_pipeline, f)
+        with open('svm_pipeline.pkl', 'wb') as f:
+            pickle.dump(svm_pipeline, f)
 
     # Evaluate the performance of the classifiers
     lr_preds = lr_pipeline.predict(X_test)
