@@ -16,8 +16,7 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
 from wordcloud import WordCloud, STOPWORDS
-import plotly.express as px
-import plotly.graph_objects as go
+from sklearn.metrics import roc_curve, auc
 
 def csv_to_sql():
     # Load the CSV file into a pandas dataframe
@@ -312,3 +311,29 @@ def generate_wordcloud_positive(df):
     plt.title('Word Cloud of Positive Reviews')
     plt.show()
 generate_wordcloud_positive(combined_reviews)
+
+
+
+# Make predictions on the test set
+lr_preds = lr_pipeline.predict_proba(X_test)[:, 1]
+mnb_preds = mnb_pipeline.predict_proba(X_test)[:, 1]
+svm_preds = svm_pipeline.decision_function(X_test)
+
+# Calculate FPR and TPR for each model
+lr_fpr, lr_tpr, _ = roc_curve(y_test, lr_preds)
+mnb_fpr, mnb_tpr, _ = roc_curve(y_test, mnb_preds)
+svm_fpr, svm_tpr, _ = roc_curve(y_test, svm_preds)
+
+# Plot ROC curves
+plt.figure(figsize=(8, 6))
+plt.plot(lr_fpr, lr_tpr, label='Logistic Regression')
+plt.plot(mnb_fpr, mnb_tpr, label='Multinomial Naive Bayes')
+plt.plot(svm_fpr, svm_tpr, label='Support Vector Machines')
+plt.plot([0, 1], [0, 1], linestyle='--', color='gray')
+plt.xlim([-0.05, 1.05])
+plt.ylim([-0.05, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve')
+plt.legend()
+plt.show()
