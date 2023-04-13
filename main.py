@@ -1,15 +1,10 @@
-import matplotlib.pyplot as plt
 import mysql.connector
-import nltk
-import pickle
 import os
-import numpy as np
 import pandas as pd
-import seaborn as sns
-import sqlalchemy as db
-from sqlalchemy import text
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+import pickle
+import matplotlib.pyplot as plt
+import numpy as np
+from sqlalchemy import create_engine
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
@@ -107,7 +102,7 @@ def filter_reviews(df):
     return df
 updated_df = filter_reviews(df)
 
-# Preprocess the data and combine reviews
+# Preprocess the data and combine reviews into a single column
 def preprocess_data(df):
     # Combine negative and positive reviews into a single column
     negative_reviews = df[['Negative_Review']].copy()
@@ -124,10 +119,8 @@ def preprocess_data(df):
     return combined_reviews
 combined_reviews = preprocess_data(updated_df)
 
-def train_model(combined_reviews):
-    # Split the dataset into training and testing sets
-    X_train, X_test, y_train, y_test = train_test_split(combined_reviews['Review'], combined_reviews['Sentiment'], test_size=0.2, random_state=42)
-
+# Train the classifiers and save the models
+def train_model():
     # Check if the saved models exist
     if os.path.exists('lr_pipeline.pkl') and os.path.exists('mnb_pipeline.pkl') and os.path.exists('svm_pipeline.pkl'):
         # Load the saved models
@@ -138,6 +131,9 @@ def train_model(combined_reviews):
         with open('svm_pipeline.pkl', 'rb') as f:
             svm_pipeline = pickle.load(f)
     else:
+        # Train the classifiers
+        X_train, X_test, y_train, y_test = train_test_split(combined_reviews['Review'], combined_reviews['Sentiment'],
+                                                            test_size=0.2, random_state=42)
         # Logistic Regression
         lr_pipeline = Pipeline([
             ('tfidf', TfidfVectorizer()),
@@ -169,35 +165,50 @@ def train_model(combined_reviews):
         with open('svm_pipeline.pkl', 'wb') as f:
             pickle.dump(svm_pipeline, f)
 
-    # Evaluate the performance of the classifiers
+    return lr_pipeline, mnb_pipeline, svm_pipeline
+lr_pipeline, mnb_pipeline, svm_pipeline = train_model()
+# Split the data into train and test sets
+X_train, X_test, y_train, y_test = train_test_split(combined_reviews['Review'], combined_reviews['Sentiment'],
+                                                    test_size=0.2, random_state=42)
+
+# Evaluate the accuracy of the trained models on both the train and test sets.
+def evaluate_classifier_accuracies(hand_written_test_set_path, X_test, y_test, lr_pipeline, mnb_pipeline, svm_pipeline):
+    def evaluate_classifier_accuracies_helper(y_true, lr_preds, mnb_preds, svm_preds):
+        def combine_models(preds1, preds2, preds3):
+            combined_preds = []
+            for p1, p2, p3 in zip(preds1, preds2, preds3):
+                votes = [p1, p2, p3]
+                combined_preds.append(np.argmax(np.bincount(votes)))
+            return combined_preds
+
+        combined_preds = combine_models(lr_preds, mnb_preds, svm_preds)
+
+        print("Combined Accuracy: ", accuracy_score(y_true, combined_preds))
+        print("Logistic Regression Accuracy: ", accuracy_score(y_true, lr_preds))
+        print("Multinomial Naive Bayes Accuracy: ", accuracy_score(y_true, mnb_preds))
+        print("Support Vector Machines Accuracy: ", accuracy_score(y_true, svm_preds))
+
+    # Evaluate the models with the original test set
     lr_preds = lr_pipeline.predict(X_test)
     mnb_preds = mnb_pipeline.predict(X_test)
     svm_preds = svm_pipeline.predict(X_test)
 
-    return X_test, y_test, lr_preds, mnb_preds, svm_preds
-X_test, y_test, lr_preds, mnb_preds, svm_preds = train_model(combined_reviews)
+    print("\nOriginal Test Set Accuracies:")
+    evaluate_classifier_accuracies_helper(y_test, lr_preds, mnb_preds, svm_preds)
 
-def combine_models(preds1, preds2, preds3):
-    combined_preds = []
-    for p1, p2, p3 in zip(preds1, preds2, preds3):
-        votes = [p1, p2, p3]
-        combined_preds.append(np.argmax(np.bincount(votes)))
-    return combined_preds
-combined_preds = combine_models(lr_preds, mnb_preds, svm_preds)
-combined_accuracy = accuracy_score(y_test, combined_preds)
+    # Evaluate the models with the hand-written test set
+    hand_written_df = pd.read_csv(hand_written_test_set_path)
+    hand_written_preprocessed = preprocess_data(hand_written_df)
+    X_hand_written = hand_written_preprocessed['Review']
+    y_hand_written = hand_written_preprocessed['Sentiment']
 
-# Calculate the accuracy of all the models and the combined model
-classifier_accuracies = {
-    'Combined': combined_accuracy,
-    'Logistic Regression': accuracy_score(y_test, lr_preds),
-    'Multinomial Naive Bayes': accuracy_score(y_test, mnb_preds),
-    'Support Vector Machines': accuracy_score(y_test, svm_preds)
-}
+    lr_hand_written_preds = lr_pipeline.predict(X_hand_written)
+    mnb_hand_written_preds = mnb_pipeline.predict(X_hand_written)
+    svm_hand_written_preds = svm_pipeline.predict(X_hand_written)
 
-print("Combined Accuracy: ", classifier_accuracies['Combined'])
-print("Logistic Regression Accuracy: ", classifier_accuracies['Logistic Regression'])
-print("Multinomial Naive Bayes Accuracy: ", classifier_accuracies['Multinomial Naive Bayes'])
-print("Support Vector Machines Accuracy: ", classifier_accuracies['Support Vector Machines'])
+    print("Hand-Written Test Set Accuracies:")
+    evaluate_classifier_accuracies_helper(y_hand_written, lr_hand_written_preds, mnb_hand_written_preds, svm_hand_written_preds)
+evaluate_classifier_accuracies('Hand_Written_Test_Set.csv', X_test, y_test, lr_pipeline, mnb_pipeline, svm_pipeline)
 
 # Plot the distribution of word counts in the positive and negative reviews
 def plot_word_count_distribution(reviews):
