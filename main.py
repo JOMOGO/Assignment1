@@ -1,10 +1,14 @@
-import mysql.connector
-import os
-import pandas as pd
-import pickle
 import matplotlib.pyplot as plt
+import mysql.connector
+import pickle
+import os
 import numpy as np
-from sqlalchemy import create_engine
+import pandas as pd
+import seaborn as sns
+import sqlalchemy as db
+from sqlalchemy import text
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
@@ -12,6 +16,8 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
 from wordcloud import WordCloud, STOPWORDS
+import plotly.express as px
+import plotly.graph_objects as go
 
 def csv_to_sql():
     # Load the CSV file into a pandas dataframe
@@ -171,30 +177,29 @@ lr_pipeline, mnb_pipeline, svm_pipeline = train_model()
 X_train, X_test, y_train, y_test = train_test_split(combined_reviews['Review'], combined_reviews['Sentiment'],
                                                     test_size=0.2, random_state=42)
 
-# Evaluate the accuracy of the trained models on both the train and test sets.
+# Evaluate_classifier_accuracies() function to return a dictionary of accuracies
 def evaluate_classifier_accuracies(hand_written_test_set_path, X_test, y_test, lr_pipeline, mnb_pipeline, svm_pipeline):
     def evaluate_classifier_accuracies_helper(y_true, lr_preds, mnb_preds, svm_preds):
-        def combine_models(preds1, preds2, preds3):
-            combined_preds = []
-            for p1, p2, p3 in zip(preds1, preds2, preds3):
-                votes = [p1, p2, p3]
-                combined_preds.append(np.argmax(np.bincount(votes)))
-            return combined_preds
+        accuracies = {}
+        accuracies['Combined'] = accuracy_score(y_true, combined_preds(lr_preds, mnb_preds, svm_preds))
+        accuracies['Logistic Regression'] = accuracy_score(y_true, lr_preds)
+        accuracies['Multinomial Naive Bayes'] = accuracy_score(y_true, mnb_preds)
+        accuracies['Support Vector Machines'] = accuracy_score(y_true, svm_preds)
+        return accuracies
 
-        combined_preds = combine_models(lr_preds, mnb_preds, svm_preds)
-
-        print("Combined Accuracy: ", accuracy_score(y_true, combined_preds))
-        print("Logistic Regression Accuracy: ", accuracy_score(y_true, lr_preds))
-        print("Multinomial Naive Bayes Accuracy: ", accuracy_score(y_true, mnb_preds))
-        print("Support Vector Machines Accuracy: ", accuracy_score(y_true, svm_preds))
+    def combined_preds(preds1, preds2, preds3):
+        combined_preds = []
+        for p1, p2, p3 in zip(preds1, preds2, preds3):
+            votes = [p1, p2, p3]
+            combined_preds.append(np.argmax(np.bincount(votes)))
+        return combined_preds
 
     # Evaluate the models with the original test set
     lr_preds = lr_pipeline.predict(X_test)
     mnb_preds = mnb_pipeline.predict(X_test)
     svm_preds = svm_pipeline.predict(X_test)
 
-    print("\nOriginal Test Set Accuracies:")
-    evaluate_classifier_accuracies_helper(y_test, lr_preds, mnb_preds, svm_preds)
+    original_test_set_accuracies = evaluate_classifier_accuracies_helper(y_test, lr_preds, mnb_preds, svm_preds)
 
     # Evaluate the models with the hand-written test set
     hand_written_df = pd.read_csv(hand_written_test_set_path)
@@ -206,9 +211,20 @@ def evaluate_classifier_accuracies(hand_written_test_set_path, X_test, y_test, l
     mnb_hand_written_preds = mnb_pipeline.predict(X_hand_written)
     svm_hand_written_preds = svm_pipeline.predict(X_hand_written)
 
-    print("Hand-Written Test Set Accuracies:")
-    evaluate_classifier_accuracies_helper(y_hand_written, lr_hand_written_preds, mnb_hand_written_preds, svm_hand_written_preds)
-evaluate_classifier_accuracies('Hand_Written_Test_Set.csv', X_test, y_test, lr_pipeline, mnb_pipeline, svm_pipeline)
+    hand_written_test_set_accuracies = evaluate_classifier_accuracies_helper(y_hand_written, lr_hand_written_preds, mnb_hand_written_preds, svm_hand_written_preds)
+
+    return original_test_set_accuracies, hand_written_test_set_accuracies
+
+# Call the modified function
+original_accuracies, hand_written_accuracies = evaluate_classifier_accuracies('Hand_Written_Test_Set.csv', X_test, y_test, lr_pipeline, mnb_pipeline, svm_pipeline)
+
+# Print the accuracies
+print("\nOriginal Test Set Accuracies:")
+for key, value in original_accuracies.items():
+    print(f"{key}: {value:.5f}")
+print("\nHand-Written Test Set Accuracies:")
+for key, value in hand_written_accuracies.items():
+    print(f"{key}: {value:.5f}")
 
 # Plot the distribution of word counts in the positive and negative reviews
 def plot_word_count_distribution(reviews):
@@ -257,7 +273,7 @@ def plot_classifier_accuracies(accuracies):
     plt.xlabel('Classifier')
     plt.ylabel('Accuracy')
     plt.show()
-plot_classifier_accuracies(classifier_accuracies)
+plot_classifier_accuracies(original_accuracies)
 
 def generate_wordcloud_negative(df):
     # Combine all negative reviews into a single string
